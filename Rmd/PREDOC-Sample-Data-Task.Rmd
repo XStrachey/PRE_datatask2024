@@ -1,0 +1,298 @@
+---
+title: "PREDOC Sample Data Task"
+output: pdf_document
+date: "2024-08-04"
+author: "zhewei xie"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents
+
+\newpage
+
+```{r libraries, include = FALSE, echo=FALSE}
+# load libraries.
+library(tidyverse)
+library(knitr)
+library(ggtext)
+library(data.table)
+```
+
+```{r part1_dataset, echo=FALSE}
+# read csv as data set.
+cps_women_lfp <- fread("../data/raw data/cps_women_lfp.csv", header = TRUE)
+```
+
+# Part 1: Labor Force Participation
+
+## 1. The trend of female labor force participation
+
+```{r warning=FALSE, echo=FALSE}
+cps_women_lfp <- cps_women_lfp[sex == 'Female' & lfp != '']
+
+cps_women_lfp[, `:=`(
+  lfp = as.double(fifelse(lfp == "In labor force", 1, 0)),
+  year = as.double(year)
+)]
+
+flf <- cps_women_lfp[, .(lfpr = sum(lfp) / .N), by = year]
+
+ggplot(flf) +
+  geom_line(aes(x = year, y = lfpr)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 2)) +
+  ggtitle("Female Labor Force Participation since 1994") +
+  labs(x = "Year", y = "Female Labor Force Participation",
+       caption = "Figure 1. Data extracted from https://cps.ipums.org/cps/")
+```
+
+## 2. Changes of different groups
+
+### i. The change of different race
+
+```{r warning=FALSE, echo=FALSE}
+g_race <- cps_women_lfp[age != '< 25', .(lfpr = sum(lfp) / .N), by = .(year, race)]
+
+ggplot(g_race) +
+  geom_line(aes(x = year, y = lfpr, color = race)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Female Labor Force Participation since 1994",
+          subtitle = "Cover the Group Age over 25 and Facet by Race") +
+  labs(x = "Year", y = "Female Labor Force Participation",
+       caption = "Figure 2. Data extracted from https://cps.ipums.org/cps/")
+```
+
+### ii. The change of different age
+
+```{r warning=FALSE, echo=FALSE}
+g_age <- cps_women_lfp[age != '< 25', .(lfpr = sum(lfp) / .N), by = .(year, age)]
+
+ggplot(g_age) +
+  geom_line(aes(x = year, y = lfpr, color = age)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Female Labor Force Participation since 1994",
+          subtitle = "Cover the Group Age over 25 and Facet by Age") +
+  labs(x = "Year", y = "Female Labor Force Participation",
+       caption = "Figure 3. Data extracted from https://cps.ipums.org/cps/")
+```
+
+### iii. The change of different income percentile
+
+```{r warning=FALSE, echo=FALSE}
+g_income_quantiles <- cps_women_lfp[age != '< 25', .(lfpr = sum(lfp) / .N), by = .(year, income_quantiles)]
+
+ggplot(g_income_quantiles) +
+  geom_line(aes(x = year, y = lfpr, color = income_quantiles)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Female Labor Force Participation since 1994",
+          subtitle = "Cover the Group Age over 25 and Facet by Income Percentile") +
+  labs(x = "Year", y = "Female Labor Force Participation",
+       caption = "Figure 4. Data extracted from https://cps.ipums.org/cps/")
+```
+
+## 3. Factors behind the changes
+
+```{r warning=FALSE, echo=FALSE}
+factor_inctot <- cps_women_lfp[age != '< 25', 
+                .(trend = mean(as.double(inctot), na.rm = TRUE)), 
+                by = year]
+
+ggplot(factor_inctot) +
+  geom_line(aes(x = year, y = trend)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Wage and Salary Income Proportion of Total Income since 1994",
+          subtitle = "Cover the Female Labor Force Age over 25") +
+  labs(x = "Year", y = "Wage and Salary Income Proportion",
+       caption = "Figure 5. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+factor_incss <- cps_women_lfp[age != '< 25', 
+                .(trend = mean(as.double(incss), na.rm = TRUE)), 
+                by = year]
+
+ggplot(factor_incss) +
+  geom_line(aes(x = year, y = trend)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Social Insurance Income Proportion of Total Income since 1994",
+          subtitle = "Cover the Female Labor Force Age over 25") +
+  labs(x = "Year", y = "Social Insurance Income Proportion",
+       caption = "Figure 6. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+data_filtered <- cps_women_lfp[sex == "Female" & age != '< 25' & !is.na(education), 
+                      .(annual_total = .N), by = year]
+
+factor_educ <- cps_women_lfp[sex == "Female" & age != '< 25' & !is.na(education), 
+                .(n = .N), by = .(year, education)]
+
+factor_educ <- merge(factor_educ, data_filtered, by = "year")
+factor_educ[, perc := n / annual_total]
+factor_educ <- unique(factor_educ)
+factor_educ <- factor_educ[, .(year, education, perc)]
+
+ggplot(factor_educ) +
+  geom_line(aes(x = year, y = perc, color = education)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Social Insurance Income Proportion of Total Income since 1994",
+          subtitle = "Cover the Female Labor Force Age over 25") +
+  labs(x = "Year", y = "Social Insurance Income Proportion",
+       caption = "Figure 7. Data extracted from https://cps.ipums.org/cps/")
+```
+
+## 4. Is college education affect labor force participation?
+
+```{r warning=FALSE, echo=FALSE}
+g_college <- cps_women_lfp[, .(lfpr = sum(lfp) / .N), by = .(year, college)]
+
+ggplot(g_college) +
+  geom_line(aes(x = year, y = lfpr, color = college)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Female Labor Force Participation since 1994",
+          subtitle = "Grouped by College Degree") +
+  labs(x = "Year", y = "Female Labor Force Participation", color = "College Degree",
+       caption = "Figure 8. Data extracted from https://cps.ipums.org/cps/")
+```
+
+## 5. Another perspection of labor force.
+
+```{r warning=FALSE, echo=FALSE}
+cps_women_lfp[, lfp_alt := ifelse(self_employed == 'Self-employed', 0, lfp)]
+
+lfps <- cps_women_lfp[, .(lfpr_alt = sum(lfp_alt) / .N, 
+                    lfpr = sum(lfp) / .N), 
+                by = .(year, college)]
+
+long_lfps <- melt(lfps, 
+                     id.vars = c("year", "college"), 
+                     measure.vars = c("lfpr_alt", "lfpr"), 
+                     variable.name = "group", 
+                     value.name = "val")
+
+long_lfps[, group := ifelse(college == "Has college degree" & group == "lfpr_alt", 
+                               "Has College Degree: Excludes Self-Employment", 
+                        ifelse(college != "Has college degree" & group == "lfpr_alt", 
+                               "No College Degree: Excludes Self-Employment",
+                        ifelse(college == "Has college degree" & group == "lfpr", 
+                               "Has College Degree: Includes Self-Employment",
+                               "No College Degree: Includes Self-Employment")))]
+
+ggplot(long_lfps) +
+  geom_line(aes(x = year, y = val, color = group)) +
+  scale_x_continuous(breaks = seq(1994, 2024, 5)) +
+  ggtitle("Female Labor Force Participation since 1994",
+          subtitle = "Grouped by College Degree and Excluding Self-employed") +
+  labs(x = "Year", y = "Female Labor Force Participation", color = "College Degree",
+       caption = "Figure 9. Data extracted from https://cps.ipums.org/cps/")
+```
+
+# Part 2: Telework
+
+```{r warning=FALSE, echo=FALSE}
+data_2020 <- cps_women_lfp[year>=2020]
+```
+
+## 1. Different changes between telework and not telework
+
+```{r warning=FALSE, echo=FALSE}
+data_2020[, telework_20_24 := ifelse(telework_now == 'Had telework in the past week' | 
+                                     covid_telework == "Telework from 2021-2022 due to COVID", 1, 0)]
+
+data_2020[, employed := ifelse(employed == 'Employed', 1, 0)]
+
+intermed <- data_2020[year != 2020]
+
+intermed[, year := as.double(year)]
+intermed[, telework_20_24 := as.factor(telework_20_24)]
+intermed[, wgt := as.double(wgt)]
+intermed[, lfp := ifelse(lfp == "In labor force", 1, 0)]
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_wgt <- intermed[, .(trend = mean(wgt, na.rm = TRUE)), by = .(year, telework_20_24)]
+
+ggplot(g_wgt) +
+  geom_line(aes(x = year, y = trend, color = telework_20_24)) +
+  scale_x_continuous(breaks = seq(2020, 2024, 1)) +
+  ggtitle("Female Labor Force Participation since 2020",
+          subtitle = "Cover the Group Age over 25 and Facet by Wage Income Percentile") +
+  labs(x = "Year", y = "Female Labor Force Participation",
+       caption = "Figure 10. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_employed <- intermed[, .(perc = sum(employed) / .N), by = .(year, telework_20_24)]
+g_employed <- unique(g_employed)
+
+ggplot(g_employed) +
+  geom_line(aes(x = year, y = perc, color = telework_20_24)) +
+  scale_x_continuous(breaks = seq(2020, 2024, 1)) +
+  ggtitle("Self-employed Proportion among Women since 2020") +
+  labs(x = "Year", y = "Self-employed Proportion", color = "Telework Status",
+       caption = "Figure 11. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_lfp <- intermed[, .(perc = sum(lfp) / .N), by = .(year, telework_20_24)]
+g_lfp <- unique(g_lfp)
+
+ggplot(g_lfp) +
+  geom_line(aes(x = year, y = perc, fill = telework_20_24)) +
+  scale_x_continuous(breaks = seq(2020, 2024, 1)) +
+  ggtitle("Female Labor Force Participation since 2020") +
+    labs(x = "Year", y = "Female Labor Force Participation", color = "Telework Status",
+       caption = "Figure 12. Data extracted from https://cps.ipums.org/cps/")
+```
+
+## 2. Impact from pandemic in 2021
+
+```{r warning=FALSE, echo=FALSE}
+intermed <- data_2020[age != '< 25' & year == 2021]
+intermed <- intermed[, covid_telework := ifelse(covid_telework == 'Telework from 2021-2022 due to COVID', 1, 0)]
+intermed <- intermed[, education := factor(education, levels = c('< HS Diploma', 'HS Diploma', 'Some college, no degree', 'Associate\'s Degree', 'Bachelor\'s Degree', 'Master\'s or Higher'))]
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_race <- intermed[, .(covid_telework = sum(covid_telework) / .N), by = .(year, race)]
+
+g_race <- g_race[race != ""]
+
+ggplot(g_race) +
+  geom_col(aes(x = fct_reorder(race, covid_telework), y = covid_telework)) +
+  coord_flip() +
+  ggtitle("Proportion of Telework Among the Employed",
+          subtitle = "Differences Among Groups from a Racial Perspective") +
+  labs(x = "Percentage", y = "Group",
+       caption = "Figure 13. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_age <- intermed[, .(covid_telework = sum(covid_telework) / .N), by = .(year, age)]
+
+g_age <- g_age[age != ""]
+
+ggplot(g_age) +
+  geom_col(aes(x = fct_reorder(age, covid_telework), y = covid_telework)) +
+  coord_flip() +
+  ggtitle("Proportion of Telework Among the Employed",
+          subtitle = "Differences Among Groups from a Age Perspective") +
+  labs(x = "Percentage", y = "Group",
+       caption = "Figure 14. Data extracted from https://cps.ipums.org/cps/")
+```
+
+```{r warning=FALSE, echo=FALSE}
+g_education <- intermed[, .(covid_telework = sum(covid_telework) / .N), by = .(year, education)]
+
+g_education <- g_education[education != ""]
+
+ggplot(g_education) +
+  geom_col(aes(x = fct_reorder(education, covid_telework), y = covid_telework)) +
+  coord_flip() +
+  ggtitle("Proportion of Telework Among the Employed",
+          subtitle = "Differences Among Groups from a Education Perspective") +
+  labs(x = "Percentage", y = "Group",
+       caption = "Figure 15. Data extracted from https://cps.ipums.org/cps/")
+```
